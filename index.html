@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistem Sortir & Pendataan Buku Multi-Dashboard</title>
+  <title>Sistem Sortir & Pendataan Buku</title>
   
-  <!-- Library Scan Universal Compatible Semua Device -->
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <!-- Library Quagga2 (Teliti & Fokus Barcode 1D Garis Merah) -->
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
   
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { padding: 20px; background-color: #f4f7f6; max-width: 700px; margin: auto; }
     h2 { color: #333; text-align: center; margin-bottom: 15px; }
     
-    /* Navigation Tabs */
+    /* Navigasi Dashboard */
     .tab-nav { display: flex; gap: 10px; margin-bottom: 20px; }
     .tab-btn { flex: 1; padding: 12px; background: #e0e0e0; border: none; font-weight: bold; cursor: pointer; border-radius: 6px; color: #555; transition: 0.2s; }
     .tab-btn.active { background: #007bff; color: white; }
@@ -35,7 +35,7 @@
     .btn-scan:hover { background-color: #0056b3; }
     .status-msg { font-size: 13px; margin-top: -5px; font-weight: 500; }
     
-    /* Stats Box */
+    /* Box Statistik Qty */
     .stats-container { display: flex; gap: 10px; margin-bottom: 15px; }
     .stat-box { flex: 1; background: #e9f5ff; border: 1px solid #b6e0fe; padding: 10px; border-radius: 6px; text-align: center; }
     .stat-box h4 { margin: 0; font-size: 12px; color: #004085; }
@@ -48,8 +48,23 @@
     th { background-color: #343a40; color: white; }
     tr:nth-child(even) { background-color: #f9f9f9; }
     
-    #reader-container { display: none; margin-bottom: 15px; border: 2px dashed #007bff; padding: 10px; border-radius: 8px; background: #fff; text-align: center; }
-    #reader { width: 100%; max-width: 450px; margin: auto; overflow: hidden; border-radius: 6px; }
+    /* Container Kamera Versi Awal (Quagga + Garis Merah) */
+    #reader-container { display: none; margin-bottom: 15px; border: 2px dashed #007bff; padding: 10px; border-radius: 8px; background: #fff; text-align: center; position: relative; }
+    #interactive.viewport { width: 100%; height: 260px; overflow: hidden; position: relative; border-radius: 6px; }
+    #interactive.viewport canvas, #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
+    
+    /* Garis Laser Merah Andalan */
+    .scan-guide {
+      position: absolute;
+      top: 50%;
+      left: 10%;
+      right: 10%;
+      height: 2px;
+      background: red;
+      box-shadow: 0 0 10px red;
+      z-index: 10;
+      pointer-events: none;
+    }
     .scan-box-info { font-size: 12px; color: #555; margin-top: 8px; line-height: 1.4; }
     
     .tab-content { display: none; }
@@ -60,20 +75,22 @@
 
   <h2>nyortir dulu kawann</h2>
 
-  <!-- Tombol Navigasi Halaman -->
+  <!-- Navigasi Dashboard -->
   <div class="tab-nav">
-    <button class="tab-btn active" onclick="switchTab('tab1')">SORTIR INTERNAL</button>
-    <button class="tab-btn" onclick="switchTab('tab2')">SORTIR EXTERNAL</button>
+    <button class="tab-btn active" onclick="switchTab('tab1')">INTERNAL</button>
+    <button class="tab-btn" onclick="switchTab('tab2')">EXTERNAL</button>
   </div>
 
-  <!-- Area Scanner Kamera (Universal) -->
+  <!-- Area Kamera (Sistem Awal Quagga) -->
   <div class="card" style="padding: 10px; margin-bottom: 10px;">
-    <button type="button" class="btn-sync" onclick="fetchData(true)">Sync Master Data </button>
-    <button type="button" class="btn-scan" onclick="toggleScanner()"><span id="btnScanText">Scan Barcode</span></button>
+    <button type="button" class="btn-sync" onclick="fetchData(true)">Sync Master Data</button>
+    <button type="button" class="btn-scan" onclick="toggleScanner()"><span id="btnScanText">Buka Kamera Scan Barcode</span></button>
     
     <div id="reader-container">
-      <div id="reader"></div>
-      <p class="scan-box-info" id="scannerHint">Tahan kamera dengan tenang. Posisikan barcode tepat di dalam <b>kotak target</b></p>
+      <div id="interactive" class="viewport">
+        <div class="scan-guide"></div>
+      </div>
+      <p class="scan-box-info" id="scannerHint">Posisikan garis barcode melintasi <b>garis merah</b></p>
     </div>
   </div>
 
@@ -87,7 +104,7 @@
           <input type="text" id="inputJudul1" class="input-judul" placeholder="Judul Buku (Otomatis)" readonly>
         </div>
         <div id="statusMsg1" class="status-msg"></div>
-        <button type="submit" id="btnSimpan1" disabled>Simpan Ke Sheet1</button>
+        <button type="submit" id="btnSimpan1" disabled>Simpan Ke List</button>
       </form>
     </div>
 
@@ -120,7 +137,6 @@
     <div class="card">
       <h3>Dashboard Multi-Qty (Database Separate)</h3>
       
-      <!-- Ringkasan Statistik -->
       <div class="stats-container">
         <div class="stat-box">
           <h4>Total Jenis Buku</h4>
@@ -169,12 +185,11 @@
   </div>
 
   <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwqL5aUVqG05a0LvKykCsNiaFcw9p-ZTSfCXm12bh8Iy7c0jWteuCs3R3zdsM72_BSDeg/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwvND8_BwNxiygXN14reHZbHGk6oHctBVQsgeu5DkpH7-0jxyqLOY0G79NVhVcl_qh2_w/exec";
 
     let masterMap = new Map();
     let listBukuSimpan1 = [];
-    let listBukuSimpan2 = []; // Database Terpisah untuk Dashboard Qty
-    let html5QrCode = null;
+    let listBukuSimpan2 = [];
     let isScanning = false;
     let activeTab = 'tab1';
 
@@ -239,153 +254,102 @@
         .catch(err => console.error("Error load data:", err));
     }
 
-    // --- MANAJEMEN SCANNER ANTI-LOCK KAMERA ---
-async function toggleScanner() {
-  const container = document.getElementById("reader-container");
-  const btnText = document.getElementById("btnScanText");
+    // --- ENGINE KAMERA QUAGGA2 VERSI AWAL (GARIS MERAH & FILTER TELITI DATABASE) ---
+    function toggleScanner() {
+      const container = document.getElementById("reader-container");
+      const btnText = document.getElementById("btnScanText");
 
-  if (isScanning) {
-    await stopCameraStream();
-    container.style.display = "none";
-    btnText.textContent = "Buka Kamera Scan Barcode";
-    isScanning = false;
-  } else {
-    // Pastikan semua sesi kamera lama di-stop dulu sebelum buka baru
-    await stopCameraStream();
-    container.style.display = "block";
-    btnText.textContent = "Tutup Kamera";
-    isScanning = true;
-    startUniversalScanner();
-  }
-}
-
-async function stopCameraStream() {
-  if (html5QrCode) {
-    try {
-      if (html5QrCode.isScanning) {
-        await html5QrCode.stop();
+      if (isScanning) {
+        stopQuagga();
+        container.style.display = "none";
+        btnText.textContent = "Buka Kamera Scan Barcode";
+        isScanning = false;
+      } else {
+        container.style.display = "block";
+        btnText.textContent = "Tutup Kamera";
+        isScanning = true;
+        startQuaggaSmooth();
       }
-      html5QrCode.clear();
-    } catch (e) {
-      console.log("Cleanup camera stream error:", e);
     }
-  }
-}
 
-function startUniversalScanner() {
-  html5QrCode = new Html5Qrcode("reader");
+    function stopQuagga() {
+      try {
+        Quagga.stop();
+      } catch(e) { console.log(e); }
+    }
 
-  const formatsToSupport = [
-    Html5QrcodeSupportedFormats.EAN_13,
-    Html5QrcodeSupportedFormats.CODE_128,
-    Html5QrcodeSupportedFormats.EAN_8,
-    Html5QrcodeSupportedFormats.UPC_A,
-    Html5QrcodeSupportedFormats.UPC_E,
-    Html5QrcodeSupportedFormats.CODE_39
-  ];
+    function startQuaggaSmooth() {
+      Quagga.init({
+        inputStream: {
+          name: "Live",
+          type: "LiveStream",
+          target: document.querySelector("#interactive"),
+          constraints: {
+            facingMode: "environment",
+            width: { min: 640, ideal: 1280 },
+            height: { min: 480, ideal: 720 },
+            aspectRatio: { ideal: 1.777777778 }
+          },
+          area: {
+            top: "25%",
+            right: "10%",
+            left: "10%",
+            bottom: "25%"
+          }
+        },
+        locator: {
+          patchSize: "medium",
+          halfSample: false
+        },
+        numOfWorkers: 4,
+        frequency: 12,
+        decoder: {
+          readers: [
+            "code_128_reader",
+            "ean_reader",
+            "ean_8_reader",
+            "code_39_reader"
+          ]
+        },
+        locate: true
+      }, function(err) {
+        if (err) {
+          alert("Gagal membuka kamera: " + err);
+          toggleScanner();
+          return;
+        }
 
-  const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
-    let w = viewfinderWidth || 300;
-    let h = viewfinderHeight || 200;
-    let minEdgeSize = Math.min(w, h);
-    let qrboxSize = Math.floor(minEdgeSize * 0.7);
-    return {
-      width: Math.max(qrboxSize, 180),
-      height: Math.floor(Math.max(qrboxSize, 180) * 0.5)
-    };
-  };
+        const videoElem = document.querySelector("#interactive video");
+        if (videoElem) {
+          videoElem.setAttribute("playsinline", "true");
+          videoElem.setAttribute("muted", "true");
+          videoElem.play().catch(e => console.log("Play video error:", e));
+        }
 
-  const config = {
-    fps: 6,
-    qrbox: qrboxFunction,
-    formatsToSupport: formatsToSupport,
-    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-  };
-
-  // Mencoba membuka kamera
-  html5QrCode.start(
-    { facingMode: "environment" },
-    config,
-    onScanSuccess
-  ).catch(err => {
-    console.warn("Kamera sibuk, mencoba reset & retry...", err);
-    
-    // Retry otomatis setelah jeda 800ms
-    setTimeout(async () => {
-      await stopCameraStream();
-      html5QrCode = new Html5Qrcode("reader");
-      html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-        .catch(() => {
-          alert("Kamera sedang terpakai oleh aplikasi lain (WhatsApp/Kamera). Mohon tutup aplikasi tersebut lalu klik Buka Kamera lagi.");
-          isScanning = false;
-          document.getElementById("reader-container").style.display = "none";
-          document.getElementById("btnScanText").textContent = "Buka Kamera Scan Barcode";
-        });
-    }, 800);
-  });
-}
-
-    function startUniversalScanner() {
-      html5QrCode = new Html5Qrcode("reader");
-
-      const formatsToSupport = [
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.CODE_39
-      ];
-
-      const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
-        let w = viewfinderWidth || 300;
-        let h = viewfinderHeight || 200;
-        let minEdgeSize = Math.min(w, h);
-        let qrboxSize = Math.floor(minEdgeSize * 0.7);
-        return {
-          width: Math.max(qrboxSize, 180),
-          height: Math.floor(Math.max(qrboxSize, 180) * 0.5)
-        };
-      };
-
-      const config = {
-        fps: 6,
-        qrbox: qrboxFunction,
-        formatsToSupport: formatsToSupport,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-      };
-
-      html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        onScanSuccess
-      ).catch(err => {
-        setTimeout(() => {
-          html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-            .catch(() => {
-              alert("Kamera sedang terpakai oleh aplikasi lain.");
-              toggleScanner();
-            });
-        }, 600);
+        Quagga.start();
       });
+
+      Quagga.onDetected(onBarcodeDetected);
     }
 
-    let detectHistory = [];
+    let codeBuffer = [];
     
-    function onScanSuccess(decodedText) {
-      const rawCode = decodedText.trim();
+    function onBarcodeDetected(result) {
+      const rawCode = result.codeResult.code ? String(result.codeResult.code).trim() : "";
       const cleanedCode = cleanID(rawCode);
 
       if (!cleanedCode) return;
 
       const hint = document.getElementById("scannerHint");
 
+      // Cek apakah ID terdaftar di Master Data
       if (masterMap.has(cleanedCode)) {
-        detectHistory.push(cleanedCode);
-        if (detectHistory.length > 2) detectHistory.shift();
+        codeBuffer.push(cleanedCode);
+        if (codeBuffer.length > 2) codeBuffer.shift();
 
-        if (detectHistory.length === 2 && detectHistory[0] === detectHistory[1]) {
-          detectHistory = [];
+        // Verifikasi konsistensi 2 frame berturut-turut agar teliti
+        if (codeBuffer.length === 2 && codeBuffer[0] === codeBuffer[1]) {
+          codeBuffer = [];
           
           if (activeTab === 'tab1') {
             document.getElementById("inputId1").value = rawCode;
@@ -395,19 +359,19 @@ function startUniversalScanner() {
             cariJudulOtomatis(2);
           }
 
-          toggleScanner();
+          toggleScanner(); // Matikan kamera jika sudah teliti ketemu
         } else {
           hint.style.color = "#28a745";
           hint.innerHTML = `⏳ <b>Buku terdeteksi!</b> Tahan HP sebentar dengan tenang...`;
         }
-
       } else {
-        detectHistory = [];
+        codeBuffer = [];
         hint.style.color = "#dc3545";
         hint.innerHTML = `✕ Barcode <b>${rawCode}</b> tidak ada di database!`;
       }
     }
 
+    // PENCARIAN JUDUL OTOMATIS
     function cariJudulOtomatis(mode) {
       const rawInput = document.getElementById(`inputId${mode}`).value.trim();
       const cleanedInput = cleanID(rawInput);
@@ -435,7 +399,7 @@ function startUniversalScanner() {
       }
     }
 
-    // SUBMIT DASHBOARD 1 -> SIMPAN KE Sheet1
+    // SUBMIT DASHBOARD 1 (SINGLE)
     document.getElementById("bookForm1").addEventListener("submit", function(e) {
       e.preventDefault();
       
@@ -459,7 +423,7 @@ function startUniversalScanner() {
       }).catch(err => console.error("Gagal simpan ke cloud:", err));
     });
 
-    // SUBMIT DASHBOARD 2 -> SIMPAN KE SheetQty
+    // SUBMIT DASHBOARD 2 (QTY)
     document.getElementById("bookForm2").addEventListener("submit", function(e) {
       e.preventDefault();
       
@@ -487,7 +451,6 @@ function startUniversalScanner() {
       document.getElementById("btnSimpan2").disabled = true;
       document.getElementById("inputId2").focus();
 
-      // Kirim ke database SheetQty
       fetch(SCRIPT_URL, {
         method: "POST",
         body: JSON.stringify(dataBaru)
@@ -523,7 +486,7 @@ function startUniversalScanner() {
       });
     }
 
-    // RENDER TABEL 2 (QTY)
+    // RENDER TABEL 2
     function renderTable2() {
       const sortBy = document.getElementById("sortBy2").value;
       const tbody = document.getElementById("bookTableBody2");
