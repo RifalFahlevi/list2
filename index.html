@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Sortir & Pendataan Buku Multi-Dashboard</title>
+  
+  <!-- Library Scan Universal Compatible Semua Device -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { padding: 20px; background-color: #f4f7f6; max-width: 700px; margin: auto; }
+    h2 { color: #333; text-align: center; margin-bottom: 15px; }
+    
+    /* Navigation Tabs */
+    .tab-nav { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab-btn { flex: 1; padding: 12px; background: #e0e0e0; border: none; font-weight: bold; cursor: pointer; border-radius: 6px; color: #555; transition: 0.2s; }
+    .tab-btn.active { background: #007bff; color: white; }
+
+    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .form-group { display: flex; flex-direction: column; gap: 12px; }
+    .input-row { display: flex; gap: 10px; }
+    input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+    input[readonly] { background-color: #e9ecef; color: #495057; font-weight: bold; }
+    .input-id { flex: 1; }
+    .input-judul { flex: 2; }
+    .input-qty { width: 90px; text-align: center; font-weight: bold; }
+    
+    button { background-color: #28a745; color: white; border: none; padding: 11px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+    button:hover { background-color: #218838; }
+    button:disabled { background-color: #6c757d; cursor: not-allowed; }
+    .btn-sync { background-color: #17a2b8; margin-bottom: 10px; width: 100%; }
+    .btn-scan { background-color: #007bff; margin-bottom: 10px; width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; }
+    .btn-scan:hover { background-color: #0056b3; }
+    .status-msg { font-size: 13px; margin-top: -5px; font-weight: 500; }
+    
+    /* Stats Box */
+    .stats-container { display: flex; gap: 10px; margin-bottom: 15px; }
+    .stat-box { flex: 1; background: #e9f5ff; border: 1px solid #b6e0fe; padding: 10px; border-radius: 6px; text-align: center; }
+    .stat-box h4 { margin: 0; font-size: 12px; color: #004085; }
+    .stat-box p { margin: 5px 0 0 0; font-size: 18px; font-weight: bold; color: #007bff; }
+
+    .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+    th { background-color: #343a40; color: white; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    
+    #reader-container { display: none; margin-bottom: 15px; border: 2px dashed #007bff; padding: 10px; border-radius: 8px; background: #fff; text-align: center; }
+    #reader { width: 100%; max-width: 450px; margin: auto; overflow: hidden; border-radius: 6px; }
+    .scan-box-info { font-size: 12px; color: #555; margin-top: 8px; line-height: 1.4; }
+    
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+
+  <h2>nyortir dulu kawann</h2>
+
+  <!-- Tombol Navigasi Halaman -->
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('tab1')">SORTIR INTERNAL</button>
+    <button class="tab-btn" onclick="switchTab('tab2')">SORTIR EXTERNAL</button>
+  </div>
+
+  <!-- Area Scanner Kamera (Universal) -->
+  <div class="card" style="padding: 10px; margin-bottom: 10px;">
+    <button type="button" class="btn-sync" onclick="fetchData(true)">Sync Master Data </button>
+    <button type="button" class="btn-scan" onclick="toggleScanner()"><span id="btnScanText">Scan Barcode</span></button>
+    
+    <div id="reader-container">
+      <div id="reader"></div>
+      <p class="scan-box-info" id="scannerHint">Tahan kamera dengan tenang. Posisikan barcode tepat di dalam <b>kotak target</b></p>
+    </div>
+  </div>
+
+  <!-- ================= DASHBOARD 1: SINGLE SCAN ================= -->
+  <div id="tab1" class="tab-content active">
+    <div class="card">
+      <h3>Dashboard Single Scan</h3>
+      <form id="bookForm1" class="form-group">
+        <div class="input-row">
+          <input type="text" id="inputId1" class="input-id" placeholder="Ketik/Scan ID Buku" required oninput="cariJudulOtomatis(1)" autofocus>
+          <input type="text" id="inputJudul1" class="input-judul" placeholder="Judul Buku (Otomatis)" readonly>
+        </div>
+        <div id="statusMsg1" class="status-msg"></div>
+        <button type="submit" id="btnSimpan1" disabled>Simpan Ke Sheet1</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="controls">
+        <label><strong>Urutkan Berdasarkan:</strong></label>
+        <select id="sortBy1" onchange="renderTable1()">
+          <option value="id-desc">Terbaru Disimpan</option>
+          <option value="judul-asc">Judul (A - Z)</option>
+          <option value="judul-desc">Judul (Z - A)</option>
+        </select>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 35%;">ID Buku</th>
+            <th>Judul Buku</th>
+          </tr>
+        </thead>
+        <tbody id="bookTableBody1">
+          <tr><td colspan="2" style="text-align:center;">Memuat data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ================= DASHBOARD 2: SCAN + QTY ================= -->
+  <div id="tab2" class="tab-content">
+    <div class="card">
+      <h3>Dashboard Multi-Qty (Database Separate)</h3>
+      
+      <!-- Ringkasan Statistik -->
+      <div class="stats-container">
+        <div class="stat-box">
+          <h4>Total Jenis Buku</h4>
+          <p id="totalJenis">0</p>
+        </div>
+        <div class="stat-box">
+          <h4>Total Qty Buku</h4>
+          <p id="totalQty">0</p>
+        </div>
+      </div>
+
+      <form id="bookForm2" class="form-group">
+        <div class="input-row">
+          <input type="text" id="inputId2" class="input-id" placeholder="Scan/Ketik ID Buku" required oninput="cariJudulOtomatis(2)">
+          <input type="number" id="inputQty2" class="input-qty" value="1" min="1" placeholder="Qty" required>
+        </div>
+        <input type="text" id="inputJudul2" placeholder="Judul Buku (Otomatis)" readonly style="width: 100%;">
+        <div id="statusMsg2" class="status-msg"></div>
+        <button type="submit" id="btnSimpan2" disabled>+ Simpan Ke SheetQty</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="controls">
+        <label><strong>Daftar Buku Qty:</strong></label>
+        <select id="sortBy2" onchange="renderTable2()">
+          <option value="id-desc">Terbaru Tambah</option>
+          <option value="qty-desc">Qty Banyak ke Sedikit</option>
+          <option value="judul-asc">Judul (A - Z)</option>
+        </select>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 25%;">ID Buku</th>
+            <th>Judul Buku</th>
+            <th style="width: 15%; text-align: center;">Qty</th>
+          </tr>
+        </thead>
+        <tbody id="bookTableBody2">
+          <tr><td colspan="3" style="text-align:center;">Belum ada data Qty.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwqL5aUVqG05a0LvKykCsNiaFcw9p-ZTSfCXm12bh8Iy7c0jWteuCs3R3zdsM72_BSDeg/exec";
+
+    let masterMap = new Map();
+    let listBukuSimpan1 = [];
+    let listBukuSimpan2 = []; // Database Terpisah untuk Dashboard Qty
+    let html5QrCode = null;
+    let isScanning = false;
+    let activeTab = 'tab1';
+
+    document.addEventListener("DOMContentLoaded", () => {
+      loadLocalMaster();
+      fetchData(false);
+    });
+
+    function switchTab(tabId) {
+      activeTab = tabId;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      
+      if(tabId === 'tab1') {
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        document.getElementById('tab1').classList.add('active');
+        document.getElementById('inputId1').focus();
+      } else {
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        document.getElementById('tab2').classList.add('active');
+        document.getElementById('inputId2').focus();
+      }
+    }
+
+    function loadLocalMaster() {
+      const cachedMaster = localStorage.getItem("masterBukuCache");
+      if (cachedMaster) {
+        const arr = JSON.parse(cachedMaster);
+        masterMap = new Map(arr.map(item => [cleanID(item.id), item.judul]));
+      }
+    }
+
+    function cleanID(idStr) {
+      if (!idStr) return "";
+      return String(idStr).replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    }
+
+    function fetchData(forceReload = false) {
+      const statusMsg = document.getElementById(activeTab === 'tab1' ? "statusMsg1" : "statusMsg2");
+      if (forceReload && statusMsg) statusMsg.textContent = "Sedang sinkronisasi data master...";
+
+      fetch(SCRIPT_URL)
+        .then(res => res.json())
+        .then(data => {
+          if (data.master && data.master.length > 0) {
+            localStorage.setItem("masterBukuCache", JSON.stringify(data.master));
+            masterMap = new Map(data.master.map(item => [cleanID(item.id), item.judul]));
+          }
+          
+          listBukuSimpan1 = data.simpan1 || [];
+          listBukuSimpan2 = data.simpan2 || [];
+          
+          renderTable1();
+          renderTable2();
+
+          if (forceReload && statusMsg) {
+            statusMsg.style.color = "#28a745";
+            statusMsg.textContent = "✓ Master data berhasil diperbarui!";
+            setTimeout(() => statusMsg.textContent = "", 2000);
+          }
+        })
+        .catch(err => console.error("Error load data:", err));
+    }
+
+    // --- MANAJEMEN SCANNER ANTI-LOCK KAMERA ---
+async function toggleScanner() {
+  const container = document.getElementById("reader-container");
+  const btnText = document.getElementById("btnScanText");
+
+  if (isScanning) {
+    await stopCameraStream();
+    container.style.display = "none";
+    btnText.textContent = "Buka Kamera Scan Barcode";
+    isScanning = false;
+  } else {
+    // Pastikan semua sesi kamera lama di-stop dulu sebelum buka baru
+    await stopCameraStream();
+    container.style.display = "block";
+    btnText.textContent = "Tutup Kamera";
+    isScanning = true;
+    startUniversalScanner();
+  }
+}
+
+async function stopCameraStream() {
+  if (html5QrCode) {
+    try {
+      if (html5QrCode.isScanning) {
+        await html5QrCode.stop();
+      }
+      html5QrCode.clear();
+    } catch (e) {
+      console.log("Cleanup camera stream error:", e);
+    }
+  }
+}
+
+function startUniversalScanner() {
+  html5QrCode = new Html5Qrcode("reader");
+
+  const formatsToSupport = [
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.CODE_39
+  ];
+
+  const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
+    let w = viewfinderWidth || 300;
+    let h = viewfinderHeight || 200;
+    let minEdgeSize = Math.min(w, h);
+    let qrboxSize = Math.floor(minEdgeSize * 0.7);
+    return {
+      width: Math.max(qrboxSize, 180),
+      height: Math.floor(Math.max(qrboxSize, 180) * 0.5)
+    };
+  };
+
+  const config = {
+    fps: 6,
+    qrbox: qrboxFunction,
+    formatsToSupport: formatsToSupport,
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+  };
+
+  // Mencoba membuka kamera
+  html5QrCode.start(
+    { facingMode: "environment" },
+    config,
+    onScanSuccess
+  ).catch(err => {
+    console.warn("Kamera sibuk, mencoba reset & retry...", err);
+    
+    // Retry otomatis setelah jeda 800ms
+    setTimeout(async () => {
+      await stopCameraStream();
+      html5QrCode = new Html5Qrcode("reader");
+      html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+        .catch(() => {
+          alert("Kamera sedang terpakai oleh aplikasi lain (WhatsApp/Kamera). Mohon tutup aplikasi tersebut lalu klik Buka Kamera lagi.");
+          isScanning = false;
+          document.getElementById("reader-container").style.display = "none";
+          document.getElementById("btnScanText").textContent = "Buka Kamera Scan Barcode";
+        });
+    }, 800);
+  });
+}
+
+    function startUniversalScanner() {
+      html5QrCode = new Html5Qrcode("reader");
+
+      const formatsToSupport = [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_39
+      ];
+
+      const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
+        let w = viewfinderWidth || 300;
+        let h = viewfinderHeight || 200;
+        let minEdgeSize = Math.min(w, h);
+        let qrboxSize = Math.floor(minEdgeSize * 0.7);
+        return {
+          width: Math.max(qrboxSize, 180),
+          height: Math.floor(Math.max(qrboxSize, 180) * 0.5)
+        };
+      };
+
+      const config = {
+        fps: 6,
+        qrbox: qrboxFunction,
+        formatsToSupport: formatsToSupport,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+      };
+
+      html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        onScanSuccess
+      ).catch(err => {
+        setTimeout(() => {
+          html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+            .catch(() => {
+              alert("Kamera sedang terpakai oleh aplikasi lain.");
+              toggleScanner();
+            });
+        }, 600);
+      });
+    }
+
+    let detectHistory = [];
+    
+    function onScanSuccess(decodedText) {
+      const rawCode = decodedText.trim();
+      const cleanedCode = cleanID(rawCode);
+
+      if (!cleanedCode) return;
+
+      const hint = document.getElementById("scannerHint");
+
+      if (masterMap.has(cleanedCode)) {
+        detectHistory.push(cleanedCode);
+        if (detectHistory.length > 2) detectHistory.shift();
+
+        if (detectHistory.length === 2 && detectHistory[0] === detectHistory[1]) {
+          detectHistory = [];
+          
+          if (activeTab === 'tab1') {
+            document.getElementById("inputId1").value = rawCode;
+            cariJudulOtomatis(1);
+          } else {
+            document.getElementById("inputId2").value = rawCode;
+            cariJudulOtomatis(2);
+          }
+
+          toggleScanner();
+        } else {
+          hint.style.color = "#28a745";
+          hint.innerHTML = `⏳ <b>Buku terdeteksi!</b> Tahan HP sebentar dengan tenang...`;
+        }
+
+      } else {
+        detectHistory = [];
+        hint.style.color = "#dc3545";
+        hint.innerHTML = `✕ Barcode <b>${rawCode}</b> tidak ada di database!`;
+      }
+    }
+
+    function cariJudulOtomatis(mode) {
+      const rawInput = document.getElementById(`inputId${mode}`).value.trim();
+      const cleanedInput = cleanID(rawInput);
+      const inputJudul = document.getElementById(`inputJudul${mode}`);
+      const btnSimpan = document.getElementById(`btnSimpan${mode}`);
+      const statusMsg = document.getElementById(`statusMsg${mode}`);
+
+      if (cleanedInput === "") {
+        inputJudul.value = "";
+        statusMsg.textContent = "";
+        btnSimpan.disabled = true;
+        return;
+      }
+
+      if (masterMap.has(cleanedInput)) {
+        inputJudul.value = masterMap.get(cleanedInput);
+        statusMsg.style.color = "#28a745";
+        statusMsg.textContent = "✓ Buku ditemukan!";
+        btnSimpan.disabled = false;
+      } else {
+        inputJudul.value = "";
+        statusMsg.style.color = "#dc3545";
+        statusMsg.textContent = "✕ ID Buku tidak ditemukan di database";
+        btnSimpan.disabled = true;
+      }
+    }
+
+    // SUBMIT DASHBOARD 1 -> SIMPAN KE Sheet1
+    document.getElementById("bookForm1").addEventListener("submit", function(e) {
+      e.preventDefault();
+      
+      const idVal = document.getElementById("inputId1").value.trim();
+      const judulVal = document.getElementById("inputJudul1").value;
+
+      const dataBaru = { id: idVal, judul: judulVal, mode: "single" };
+
+      listBukuSimpan1.unshift(dataBaru);
+      renderTable1();
+
+      document.getElementById("inputId1").value = "";
+      document.getElementById("inputJudul1").value = "";
+      document.getElementById("statusMsg1").textContent = "";
+      document.getElementById("btnSimpan1").disabled = true;
+      document.getElementById("inputId1").focus();
+
+      fetch(SCRIPT_URL, {
+        method: "POST",
+        body: JSON.stringify(dataBaru)
+      }).catch(err => console.error("Gagal simpan ke cloud:", err));
+    });
+
+    // SUBMIT DASHBOARD 2 -> SIMPAN KE SheetQty
+    document.getElementById("bookForm2").addEventListener("submit", function(e) {
+      e.preventDefault();
+      
+      const idVal = document.getElementById("inputId2").value.trim();
+      const cleanedId = cleanID(idVal);
+      const judulVal = document.getElementById("inputJudul2").value;
+      const qtyVal = parseInt(document.getElementById("inputQty2").value) || 1;
+
+      const dataBaru = { id: idVal, judul: judulVal, qty: qtyVal, mode: "qty" };
+
+      const indexExisting = listBukuSimpan2.findIndex(item => cleanID(item.id) === cleanedId);
+      
+      if (indexExisting !== -1) {
+        listBukuSimpan2[indexExisting].qty += qtyVal;
+      } else {
+        listBukuSimpan2.unshift(dataBaru);
+      }
+
+      renderTable2();
+
+      document.getElementById("inputId2").value = "";
+      document.getElementById("inputJudul2").value = "";
+      document.getElementById("inputQty2").value = "1";
+      document.getElementById("statusMsg2").textContent = "";
+      document.getElementById("btnSimpan2").disabled = true;
+      document.getElementById("inputId2").focus();
+
+      // Kirim ke database SheetQty
+      fetch(SCRIPT_URL, {
+        method: "POST",
+        body: JSON.stringify(dataBaru)
+      }).catch(err => console.error("Gagal simpan ke cloud:", err));
+    });
+
+    // RENDER TABEL 1
+    function renderTable1() {
+      const sortBy = document.getElementById("sortBy1").value;
+      const tbody = document.getElementById("bookTableBody1");
+
+      let sortedData = [...listBukuSimpan1];
+
+      sortedData.sort((a, b) => {
+        if (sortBy === "judul-asc") return String(a.judul).localeCompare(String(b.judul));
+        if (sortBy === "judul-desc") return String(b.judul).localeCompare(String(a.judul));
+        if (sortBy === "id-desc") return 0;
+      });
+
+      tbody.innerHTML = "";
+      if (sortedData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">Belum ada buku yang disimpan.</td></tr>';
+        return;
+      }
+
+      sortedData.forEach(book => {
+        tbody.innerHTML += `
+          <tr>
+            <td><code>${book.id}</code></td>
+            <td><strong>${book.judul}</strong></td>
+          </tr>
+        `;
+      });
+    }
+
+    // RENDER TABEL 2 (QTY)
+    function renderTable2() {
+      const sortBy = document.getElementById("sortBy2").value;
+      const tbody = document.getElementById("bookTableBody2");
+
+      let sortedData = [...listBukuSimpan2];
+
+      sortedData.sort((a, b) => {
+        if (sortBy === "judul-asc") return String(a.judul).localeCompare(String(b.judul));
+        if (sortBy === "qty-desc") return b.qty - a.qty;
+        if (sortBy === "id-desc") return 0;
+      });
+
+      const totalJenis = sortedData.length;
+      const totalQty = sortedData.reduce((acc, curr) => acc + curr.qty, 0);
+
+      document.getElementById("totalJenis").textContent = totalJenis;
+      document.getElementById("totalQty").textContent = totalQty;
+
+      tbody.innerHTML = "";
+      if (sortedData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Belum ada data Qty.</td></tr>';
+        return;
+      }
+
+      sortedData.forEach(book => {
+        tbody.innerHTML += `
+          <tr>
+            <td><code>${book.id}</code></td>
+            <td><strong>${book.judul}</strong></td>
+            <td style="text-align: center;"><span style="background:#007bff; color:white; padding:2px 8px; border-radius:10px; font-weight:bold;">${book.qty}</span></td>
+          </tr>
+        `;
+      });
+    }
+  </script>
+</body>
+</html>
